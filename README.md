@@ -51,23 +51,6 @@ Der Marketplace von Home Assistant (ab 2026.11) und HACS installieren **keine Ap
 5. **Vorzeichen prüfen:** bei einem vorzeichenbehafteten Netzsensor muss Bezug positiv sein, sonst `invert: true` setzen. Test: nachts ohne PV einen Verbraucher einschalten, `netz_<name>_w` muss steigen.
 6. **Log prüfen:** AppDaemon lädt die `apps.yaml` selbst neu. Im Protokoll erscheint `Belastungslog gestartet (…)`, danach liegt die erste CSV in `log_dir`. Fehler (Tippfehler bei Modul, Klasse oder Entität) stehen ebenfalls dort.
 
-### Speicherplatz und Laufzeit
-Damit der Log nicht unbemerkt den Speicher füllt, gibt es drei Einstellungen (alle optional):
-
-```yaml
-  compress: true         # abgeschlossene Tage als .csv.gz packen (Standard)
-  retention_days: 30     # Dateien älter als 30 Tage löschen (Standard, 0 = nie)
-  duration_days: 14      # nach 14 Tagen selbst stoppen (Standard: unbegrenzt, 0 = unbegrenzt)
-```
-
-- **Packen:** Jede Nacht um 00:05 Uhr und beim Start werden alle Tagesdateien **vor heute** gepackt (`lastlog_JJJJ-MM-TT.csv` wird zu `lastlog_JJJJ-MM-TT.csv.gz`). Die Datei von heute bleibt unverändert. Text wie diese CSV schrumpft beim Packen stark, der genaue Faktor hängt von den Daten ab. Prüfe ihn nach dem ersten Tag. Auswerten geht auch mit den `.gz`-Dateien (`zcat`, Python `gzip`, Excel nach dem Entpacken).
-- **Aufbewahrung:** Dateien mit dem Muster `lastlog_JJJJ-MM-TT.csv[.gz]`, die älter als `retention_days` sind, werden gelöscht. Andere Dateien im `log_dir` bleiben unberührt. Jede Pflege-Aktion steht im AppDaemon-Protokoll. **Standard ist 30 Tage.** Wer länger aufbewahren will, setzt einen höheren Wert, `0` schaltet das Löschen ab.
-- **Aufzeichnungsdauer:** Mit `duration_days` stoppt die App nach dieser Zeit selbst und schreibt eine Warnung ins Protokoll. Der Startzeitpunkt steht in der Datei `.lastlog_start` im `log_dir`, ein Neustart von AppDaemon setzt die Frist also nicht zurück. Zum Neustart der Aufzeichnung die Datei löschen oder den Wert erhöhen. Das ist nützlich, wenn man das Logging nur für eine Messkampagne braucht und es nicht vergessen will.
-
-### Hinweise zur Konfiguration
-- Wechselrichter fallen nachts oder bei Funkproblemen aus (Sensor `unavailable`). Mit `optional: true` zählt ein fehlender Wert dann als 0 W, sonst bleibt `verbrauch_w` leer.
-- Die Altersspalte (`*_age_s`) beruht auf `last_updated`. Bei konstanten Werten (z. B. 0 W) steigt sie weiter an, weil HA den Zeitstempel dann nicht ändert. Sie taugt daher vor allem für sich ändernde Messwerte.
-
 ## Update
 Die App aktualisiert sich nicht selbst. Ein Update ersetzt nur die Datei `power_flow_logger.py`, deine `apps.yaml` und die bereits geloggten Daten bleiben unberührt. `<id>` ist der Ordner der AppDaemon-App, z. B. `a0d7b954_appdaemon`.
 
@@ -135,6 +118,23 @@ Quellen unter `inverters`/`others` sind entweder nur die Entität oder ein Block
 - `enabled: input_boolean.…`: Steht der Schalter auf `off`, zählt die Quelle als 0 W. Ein Schalter macht die Quelle automatisch optional.
 
 Die Netzquellen (`grids`) sind nicht abschaltbar. Änderungen an `apps.yaml` lädt AppDaemon automatisch neu. Konfigurationsfehler brechen den Start mit einer Meldung im AppDaemon-Log ab.
+
+### Speicherplatz und Laufzeit
+Damit der Log nicht unbemerkt den Speicher füllt, gibt es drei Einstellungen (alle optional):
+
+```yaml
+  compress: true         # abgeschlossene Tage als .csv.gz packen (Standard)
+  retention_days: 30     # Dateien älter als 30 Tage löschen (Standard, 0 = nie)
+  duration_days: 14      # nach 14 Tagen selbst stoppen (Standard: unbegrenzt, 0 = unbegrenzt)
+```
+
+- **Packen:** Jede Nacht um 00:05 Uhr und beim Start werden alle Tagesdateien **vor heute** gepackt (`lastlog_JJJJ-MM-TT.csv` wird zu `lastlog_JJJJ-MM-TT.csv.gz`). Die Datei von heute bleibt unverändert. Text wie diese CSV schrumpft beim Packen stark, der genaue Faktor hängt von den Daten ab. Prüfe ihn nach dem ersten Tag. Auswerten geht auch mit den `.gz`-Dateien (`zcat`, Python `gzip`, Excel nach dem Entpacken).
+- **Aufbewahrung:** Dateien mit dem Muster `lastlog_JJJJ-MM-TT.csv[.gz]`, die älter als `retention_days` sind, werden gelöscht. Andere Dateien im `log_dir` bleiben unberührt. Jede Pflege-Aktion steht im AppDaemon-Protokoll. **Standard ist 30 Tage.** Wer länger aufbewahren will, setzt einen höheren Wert, `0` schaltet das Löschen ab.
+- **Aufzeichnungsdauer:** Mit `duration_days` stoppt die App nach dieser Zeit selbst und schreibt eine Warnung ins Protokoll. Der Startzeitpunkt steht in der Datei `.lastlog_start` im `log_dir`, ein Neustart von AppDaemon setzt die Frist also nicht zurück. Zum Neustart der Aufzeichnung die Datei löschen oder den Wert erhöhen. Das ist nützlich, wenn man das Logging nur für eine Messkampagne braucht und es nicht vergessen will.
+
+### Hinweise zur Konfiguration
+- Wechselrichter fallen nachts oder bei Funkproblemen aus (Sensor `unavailable`). Mit `optional: true` zählt ein fehlender Wert dann als 0 W, sonst bleibt `verbrauch_w` leer.
+- Die Altersspalte (`*_age_s`) beruht auf `last_updated`. Bei konstanten Werten (z. B. 0 W) steigt sie weiter an, weil HA den Zeitstempel dann nicht ändert. Sie taugt daher vor allem für sich ändernde Messwerte.
 
 ## Vorzeichen und Formeln
 - Netzleistung: **Bezug positiv, Einspeisung negativ**.
