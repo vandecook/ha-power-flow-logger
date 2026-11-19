@@ -28,12 +28,14 @@ Der Marketplace von Home Assistant (ab 2026.11) und HACS installieren **keine Ap
 2. **App-Ordner anlegen:** im Konfigurationsordner der AppDaemon-App (SSH, Datei-Editor oder Samba) den Ordner `apps/power_flow_logger/` anlegen.
 3. **Code herunterladen und kopieren.** `<id>` ist der Ordner der AppDaemon-App, z. B. `a0d7b954_appdaemon`. Bei älteren Installationen heißt der Oberordner `/addon_configs/` statt `/app_configs/`. Eine der drei Möglichkeiten:
 
-   **a) Mit Git (SSH-Terminal):**
+   **a) Mit Git (SSH-Terminal):** Der Befehl legt den Clone beim ersten Mal an und aktualisiert ihn danach, du musst nie etwas löschen:
    ```
    mkdir -p /app_configs/<id>/apps/power_flow_logger
-   git clone https://github.com/vandecook/ha-power-flow-logger /tmp/ha-power-flow-logger
+   [ -d /tmp/ha-power-flow-logger ] && git -C /tmp/ha-power-flow-logger pull \
+     || git clone --depth 1 https://github.com/vandecook/ha-power-flow-logger /tmp/ha-power-flow-logger
    cp /tmp/ha-power-flow-logger/apps/power_flow_logger/power_flow_logger.py /app_configs/<id>/apps/power_flow_logger/
    ```
+   Ein reines `git clone` bricht mit "destination path … already exists" ab, wenn der Zielordner schon existiert. Dann entweder wie oben `git pull` verwenden oder den Ordner mit `rm -rf /tmp/ha-power-flow-logger` entfernen und neu klonen.
 
    **b) Nur die eine Datei per curl oder wget (kein Git nötig):**
    ```
@@ -49,12 +51,7 @@ Der Marketplace von Home Assistant (ab 2026.11) und HACS installieren **keine Ap
 5. **Vorzeichen prüfen:** bei einem vorzeichenbehafteten Netzsensor muss Bezug positiv sein, sonst `invert: true` setzen. Test: nachts ohne PV einen Verbraucher einschalten, `netz_<name>_w` muss steigen.
 6. **Log prüfen:** AppDaemon lädt die `apps.yaml` selbst neu. Im Protokoll erscheint `Belastungslog gestartet (…)`, danach liegt die erste CSV in `log_dir`. Fehler (Tippfehler bei Modul, Klasse oder Entität) stehen ebenfalls dort.
 
-**Updates:** Die Datei `power_flow_logger.py` ersetzen, AppDaemon lädt sie automatisch neu. Mit einem vorhandenen Clone:
-```
-cd /tmp/ha-power-flow-logger && git pull
-cp apps/power_flow_logger/power_flow_logger.py /app_configs/<id>/apps/power_flow_logger/
-```
-oder den `curl`-Befehl aus b) erneut ausführen. Neue Konfigurationsoptionen stehen in `apps.yaml.example`. `/tmp` wird beim Neustart geleert, dann den Clone neu anlegen.
+**Updates:** Die Datei `power_flow_logger.py` ersetzen, AppDaemon lädt sie automatisch neu. Am einfachsten den Befehl aus a) oder b) erneut ausführen, beide funktionieren mehrfach hintereinander. Neue Konfigurationsoptionen stehen in `apps.yaml.example`.
 
 ### Speicherplatz und Laufzeit
 Damit der Log nicht unbemerkt den Speicher füllt, gibt es drei Einstellungen (alle optional):
@@ -62,7 +59,7 @@ Damit der Log nicht unbemerkt den Speicher füllt, gibt es drei Einstellungen (a
 ```yaml
   compress: true         # abgeschlossene Tage als .csv.gz packen (Standard)
   retention_days: 30     # Dateien älter als 30 Tage löschen (Standard, 0 = nie)
-  duration_days: 14      # nach 14 Tagen selbst stoppen (Standard: unbegrenzt)
+  duration_days: 14      # nach 14 Tagen selbst stoppen (Standard: unbegrenzt, 0 = unbegrenzt)
 ```
 
 - **Packen:** Jede Nacht um 00:05 Uhr und beim Start werden alle Tagesdateien **vor heute** gepackt (`lastlog_JJJJ-MM-TT.csv` wird zu `lastlog_JJJJ-MM-TT.csv.gz`). Die Datei von heute bleibt unverändert. Text wie diese CSV schrumpft beim Packen stark, der genaue Faktor hängt von den Daten ab. Prüfe ihn nach dem ersten Tag. Auswerten geht auch mit den `.gz`-Dateien (`zcat`, Python `gzip`, Excel nach dem Entpacken).
@@ -103,7 +100,7 @@ Die Vorlage ist `apps/power_flow_logger/apps.yaml.example`. Der Block gehört in
 | `log_dir` | Zielordner der CSV-Dateien (Standard `/config/lastlog`), eine Datei pro Tag. |
 | `compress` | `true` (Standard): abgeschlossene Tage werden als `.csv.gz` gepackt. |
 | `retention_days` | Standard `30`: Tagesdateien älter als N Tage werden gelöscht. `0` = nie löschen. |
-| `duration_days` | Optional: nach N Tagen Aufzeichnung stoppt die App selbst. Leer = unbegrenzt. |
+| `duration_days` | Optional: nach N Tagen Aufzeichnung stoppt die App selbst. Leer oder `0` = unbegrenzt. |
 | `grids` | Netzquellen, beliebig viele. Je Quelle **entweder** `entity` (ein vorzeichenbehafteter Sensor, optional `invert: true`) **oder** `in` und `out` (zwei vorzeichenlose Sensoren, je ≥ 0). |
 | `primary_grid` | Netzquelle, aus der der Hausverbrauch berechnet wird (Standard: erste). |
 | `inverters` | Erzeuger (AC-Leistung in W, Abgabe positiv). Zählen in den Hausverbrauch. |
