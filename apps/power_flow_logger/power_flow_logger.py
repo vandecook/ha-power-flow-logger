@@ -5,7 +5,7 @@ Werte (s seit last_updated, zur Latenzabschaetzung), der Netzleistung je Quelle
 (Bezug +, Einspeisung -), dem berechneten Hausverbrauch und der Differenz der
 Netzquellen zur primaeren Quelle.
 
-Netzquellen (`grids`, beliebig viele, z. B. Hausanschluss-Messung und AMIS-Zaehler):
+Netzquellen (`grids`, beliebig viele, z. B. Hausanschluss-Messung und Netzbetreiber-Zaehler):
   name:
     entity: sensor.x            # EIN vorzeichenbehafteter Sensor (optional invert: true)
   name:
@@ -73,7 +73,7 @@ def resolve_source(raw, optional, enabled_state):
     return raw
 
 
-class LastLog(hass.Hass):
+class PowerFlowLogger(hass.Hass):
     def initialize(self):
         self.interval = int(self.args.get("interval", 1))
         self.log_dir = self.args.get("log_dir", "/config/appdaemon/lastlog")

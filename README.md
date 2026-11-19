@@ -1,4 +1,4 @@
-# ha-power-flow-logger (AppDaemon-App für Home Assistant)
+# HA Power Flow Logger (AppDaemon-App für Home Assistant)
 
 Status: Entwurf, Logik mit simulierten Werten getestet, **noch nicht in AppDaemon/HA gelaufen**.
 
@@ -12,7 +12,7 @@ Fragen, die der Log beantworten soll:
 - Wie verhalten sich die Wechselrichter und Speicher (SOC, Leistung)?
 - Später: Viertelstunden-Mittel des Bezugs und Monatsmaximum (Power Shaving), Totzeit der Hoymiles bei Limit-Änderungen.
 
-## Konfiguration (`apps.yaml`)
+## Konfiguration (`apps.yaml`, Vorlage: `apps/power_flow_logger/apps.yaml.example`)
 
 | Schlüssel | Bedeutung |
 |---|---|
@@ -50,11 +50,18 @@ Eine Datei pro Tag: `lastlog_JJJJ-MM-TT.csv`. Spalten:
 Leere Zelle = Wert nicht verfügbar.
 
 ## Installation
-1. Backup von HA und AppDaemon-Konfiguration.
-2. AppDaemon-Add-on installieren bzw. prüfen (Zugriff auf HA, Schreibrecht auf `log_dir`).
-3. `last_log.py` und `apps.yaml` in das `apps`-Verzeichnis von AppDaemon legen, Entitäten anpassen.
-4. Im AppDaemon-Log prüfen, dass die App startet und die erste CSV entsteht.
-5. Ein paar Tage loggen, danach auswerten.
+
+### Über HACS (empfohlen)
+1. In HACS die Erkennung von AppDaemon-Apps aktivieren (Einstellungen, experimentelle Funktionen).
+2. HACS, drei Punkte oben rechts, "Benutzerdefinierte Repositories": URL `https://github.com/vandecook/ha-power-flow-logger` eintragen, Kategorie **AppDaemon**.
+3. "HA Power Flow Logger" herunterladen. HACS legt die App unter `appdaemon/apps/power_flow_logger/` ab.
+4. Den Inhalt von `apps.yaml.example` in die eigene `apps.yaml` von AppDaemon kopieren und die Entitäten anpassen. HACS verändert deine Konfiguration nie.
+5. Im AppDaemon-Log prüfen, dass die App startet und die erste CSV entsteht.
+
+Voraussetzungen: AppDaemon-Add-on mit Zugriff auf HA und Schreibrecht auf `log_dir`. Vorher ein Backup machen. HACS kann nur öffentliche Repos installieren.
+
+### Manuell
+`apps/power_flow_logger/` in das `apps`-Verzeichnis von AppDaemon kopieren, `apps.yaml.example` als Vorlage für die `apps.yaml` verwenden.
 
 ## Geplante Erweiterungen
 - Viertelstunden-Mittel des Bezugs (an der Uhr ausgerichtet) und laufendes Monatsmaximum.

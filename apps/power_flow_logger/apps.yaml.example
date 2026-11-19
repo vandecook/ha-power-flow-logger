@@ -1,0 +1,33 @@
+power_flow_logger:
+  module: power_flow_logger
+  class: PowerFlowLogger
+  interval: 1
+  log_dir: /config/appdaemon/lastlog
+
+  # Netzquellen (Bezug +, Einspeisung -). Je Quelle EINE der beiden Varianten:
+  #   entity: ein vorzeichenbehafteter Sensor (optional invert: true)
+  #   in/out: zwei vorzeichenlose Sensoren (je >= 0)
+  grids:
+    hausanschluss:                    # Messung am Hausanschluss (z. B. Shelly 3EM)
+      entity: sensor.my_grid_power
+      invert: false                   # Vorzeichen pruefen: Bezug muss positiv sein, sonst true
+    amis:                             # Zaehler des Netzbetreibers (z. B. AMIS)
+      in: sensor.my_meter_active_power_in
+      out: sensor.my_meter_active_power_out
+  primary_grid: hausanschluss         # Basis fuer Hausverbrauch; Differenz = primaer minus andere
+
+  # Erzeuger (AC-Leistung in W, Abgabe positiv). Zaehlen in den Hausverbrauch.
+  inverters:
+    inverter_1: sensor.my_inverter_1_power
+    inverter_2: sensor.my_inverter_2_power
+    # Optionaler weiterer Erzeuger, abschaltbar. Zum Aktivieren einkommentieren und Entitaeten eintragen:
+    # inverter_3:
+    #   entity: sensor.TODO_INVERTER_3_POWER
+    #   enabled: input_boolean.TODO_SWITCH   # "off" -> zaehlt als 0 W
+  # Sonstige Werte (nur Log):
+  others:
+    wp: sensor.my_heatpump_power
+    # klima: sensor.TODO
+    # wr_limit: sensor.TODO
+    # turm1_soc: sensor.TODO
+    # turm2_soc: sensor.TODO
