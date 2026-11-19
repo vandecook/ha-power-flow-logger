@@ -1,0 +1,33 @@
+last_log:
+  module: last_log
+  class: LastLog
+  interval: 1
+  log_dir: /config/appdaemon/lastlog
+
+  # Netzquellen (Bezug +, Einspeisung -). Je Quelle EINE der beiden Varianten:
+  #   entity: ein vorzeichenbehafteter Sensor (optional invert: true)
+  #   in/out: zwei vorzeichenlose Sensoren (je >= 0)
+  grids:
+    hausanschluss:                    # Shelly am Hausanschluss
+      entity: sensor.shelly_total_power
+      invert: false                   # Vorzeichen pruefen: Bezug muss positiv sein, sonst true
+    amis:                             # AMIS-Zaehler (Werte direkt vom Zaehler des Netzbetreibers)
+      in: sensor.amis_main_active_power_in
+      out: sensor.amis_main_active_power_out
+  primary_grid: hausanschluss         # Basis fuer Hausverbrauch; Differenz = primaer minus andere
+
+  # Erzeuger (AC-Leistung in W, Abgabe positiv). Zaehlen in den Hausverbrauch.
+  inverters:
+    hoymiles_1600: sensor.hoymiles_1600_4t_power
+    hoymiles_400: sensor.hoymiles_400_1t_power
+    # Neo 800 ist noch nicht installiert -> aus. Spaeter einkommentieren und Entitaeten eintragen:
+    # neo800:
+    #   entity: sensor.TODO_GROBRO_NEO800_POWER
+    #   enabled: input_boolean.TODO_NEO_PANEEL_AKTIV   # "off" -> zaehlt als 0 W (Helfer mit KI-Label anlegen)
+  # Sonstige Werte (nur Log):
+  others:
+    wp: sensor.e10_lwz303_active_power_in
+    # klima: sensor.TODO
+    # wr_limit: sensor.TODO
+    # turm1_soc: sensor.TODO
+    # turm2_soc: sensor.TODO
