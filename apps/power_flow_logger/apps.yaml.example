@@ -4,6 +4,11 @@ power_flow_logger:
   interval: 1
   log_dir: /config/lastlog            # im AppDaemon-Container; wird bei Bedarf angelegt
 
+  # Speicherplatz (alle optional)
+  compress: true                      # abgeschlossene Tage als .csv.gz packen
+  retention_days: 30                  # Dateien aelter als 30 Tage loeschen (0 = nie)
+  # duration_days: 14                 # nach 14 Tagen Aufzeichnung selbst stoppen
+
   # Netzquellen (Bezug +, Einspeisung -). Je Quelle EINE der beiden Varianten:
   #   entity: ein vorzeichenbehafteter Sensor (optional invert: true)
   #   in/out: zwei vorzeichenlose Sensoren (je >= 0)

@@ -12,6 +12,11 @@ Netzquellen (`grids`, beliebig viele, z. B. Hausanschluss-Messung und Netzbetrei
     in: sensor.a                # ODER zwei vorzeichenlose Sensoren (je >= 0)
     out: sensor.b
 
+Speicherplatz (alle optional, siehe README):
+  compress: true            # abgeschlossene Tage als .csv.gz packen (Standard: true)
+  retention_days: 30        # Dateien aelter als N Tage loeschen (Standard: 30, 0 = nie)
+  duration_days: 14         # nach N Tagen Aufzeichnung selbst stoppen (Standard: unbegrenzt)
+
 Erzeuger (`inverters`) und sonstige Werte (`others`): entweder nur die Entity oder
   name:
     entity: sensor.x
@@ -19,8 +24,11 @@ Erzeuger (`inverters`) und sonstige Werte (`others`): entweder nur die Entity od
     enabled: input_boolean.x        # Schalter; steht er auf "off", zaehlt die Quelle als 0 W
 """
 import csv
+import gzip
 import os
-from datetime import datetime, timezone
+import re
+import shutil
+from datetime import date, datetime, timedelta, timezone
 
 import appdaemon.plugins.hass.hassapi as hass
 
@@ -72,6 +80,35 @@ def resolve_source(raw, optional, enabled_state):
         return 0.0
     return raw
 
+LOG_RE = re.compile(r"^lastlog_(\d{4})-(\d{2})-(\d{2})\.csv(\.gz)?$")
+
+
+def maintain(log_dir, today, compress=True, retention_days=30):
+    """Packt abgeschlossene Tage (aelter als heute) und loescht alte Dateien.
+
+    Gibt eine Liste der Aktionen zurueck: ("compress"|"delete", Dateiname).
+    Fasst nur Dateien mit dem Muster lastlog_JJJJ-MM-TT.csv[.gz] an.
+    """
+    actions = []
+    for fname in sorted(os.listdir(log_dir)):
+        m = LOG_RE.match(fname)
+        if not m:
+            continue
+        day = date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        path = os.path.join(log_dir, fname)
+        gz = bool(m.group(4))
+        if retention_days and day < today - timedelta(days=retention_days):
+            os.remove(path)
+            actions.append(("delete", fname))
+        elif compress and not gz and day < today:
+            tmp = path + ".gz.tmp"
+            with open(path, "rb") as src, gzip.open(tmp, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+            os.replace(tmp, path + ".gz")
+            os.remove(path)
+            actions.append(("compress", fname))
+    return actions
+
 
 class PowerFlowLogger(hass.Hass):
     def initialize(self):
@@ -83,7 +120,18 @@ class PowerFlowLogger(hass.Hass):
             raise ValueError("primary_grid '%s' nicht in `grids`" % self.primary)
         self.inverters = parse_sources(self.args.get("inverters"))  # WR-Ist, W
         self.others = parse_sources(self.args.get("others"))        # WP, Klima, Limit, ...
+        self.compress = bool(self.args.get("compress", True))
+        self.retention_days = int(self.args.get("retention_days", 30))
+        duration = self.args.get("duration_days")
+        self.duration_days = int(duration) if duration else None
         os.makedirs(self.log_dir, exist_ok=True)
+
+        self.start_file = os.path.join(self.log_dir, ".lastlog_start")
+        if self.duration_days and self._expired():
+            self.log("Aufzeichnung beendet: duration_days=%d abgelaufen (Datei %s loeschen "
+                     "oder duration_days aendern, um neu zu starten)"
+                     % (self.duration_days, self.start_file), level="WARNING")
+            return
 
         # Spaltenliste der Rohwerte: (Spaltenname, Entity)
         self.cols = []
@@ -96,9 +144,36 @@ class PowerFlowLogger(hass.Hass):
         self.cols += [(n, s["entity"]) for n, s in self.others.items()]
         self.others_diff = [n for n in self.grids if n != self.primary]
 
-        self.run_every(self.snapshot, "now", self.interval)
-        self.log("Belastungslog gestartet (%s s, %d Sensoren, primaer: %s)"
-                 % (self.interval, len(self.cols), self.primary))
+        self.timer = None
+        self.timer = self.run_every(self.snapshot, "now", self.interval)
+        self.run_daily(self.cleanup, "00:05:00")
+        self.run_in(self.cleanup, 10)
+        self.log("Belastungslog gestartet (%s s, %d Sensoren, primaer: %s, packen: %s, "
+                 "Aufbewahrung: %s, Dauer: %s)"
+                 % (self.interval, len(self.cols), self.primary,
+                    "ja" if self.compress else "nein",
+                    "%d Tage" % self.retention_days if self.retention_days else "unbegrenzt",
+                    "%d Tage" % self.duration_days if self.duration_days else "unbegrenzt"))
+
+    def _expired(self):
+        """Merkt sich den Startzeitpunkt in log_dir; True, wenn duration_days ueberschritten."""
+        now = datetime.now(timezone.utc)
+        try:
+            with open(self.start_file) as f:
+                start = datetime.fromisoformat(f.read().strip())
+        except (OSError, ValueError):
+            start = now
+            with open(self.start_file, "w") as f:
+                f.write(start.isoformat())
+        return now - start >= timedelta(days=self.duration_days)
+
+    def cleanup(self, kwargs):
+        try:
+            for action, fname in maintain(self.log_dir, datetime.now().date(),
+                                          self.compress, self.retention_days):
+                self.log("Log-Pflege: %s %s" % ("geloescht" if action == "delete" else "gepackt", fname))
+        except OSError as exc:
+            self.log("Log-Pflege fehlgeschlagen: %s" % exc, level="WARNING")
 
     @staticmethod
     def _num(value):
@@ -120,6 +195,12 @@ class PowerFlowLogger(hass.Hass):
 
     def snapshot(self, kwargs):
         now = datetime.now(timezone.utc)
+        if self.duration_days and self._expired():
+            self.log("Aufzeichnung beendet: duration_days=%d abgelaufen" % self.duration_days,
+                     level="WARNING")
+            if self.timer:
+                self.cancel_timer(self.timer)
+            return
         raw = {n: self._num(self.get_state(e)) for n, e in self.cols}
         ages = {n: self._age(e, now) for n, e in self.cols}
         for name, src in list(self.inverters.items()) + list(self.others.items()):

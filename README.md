@@ -18,7 +18,7 @@ Fragen, die der Log beantworten soll:
   - mindestens eine Netzquelle: entweder ein vorzeichenbehafteter Sensor (z. B. Shelly 3EM total power) oder zwei vorzeichenlose Sensoren für Bezug und Einspeisung (z. B. AMIS-Leser). Mehrere Netzquellen sind möglich und werden verglichen.
   - optional die AC-Leistung der Wechselrichter (z. B. OpenDTU-Sensoren) und weitere Werte wie Wärmepumpe oder SOC.
 - **Schreibrecht** im Log-Ordner. In der AppDaemon-App ist `/config` der Konfigurationsordner der App (im SSH-Terminal `/addon_configs/<id>_appdaemon/`, ab 2026.11 auch `/app_configs/<id>_appdaemon/`). `log_dir: /config/lastlog` landet dort.
-- **Speicherplatz:** eine Zeile pro Sekunde ergibt je nach Sensorzahl grob 10 bis 20 MB pro Tag. Bei Dauerbetrieb `interval` erhöhen oder alte Dateien regelmäßig löschen.
+- **Speicherplatz:** eine Zeile pro Sekunde ergibt je nach Sensorzahl grob 10 bis 20 MB pro Tag (Schätzung aus der Zeilenlänge, nicht gemessen). Abgeschlossene Tage werden standardmäßig gepackt, Dateien älter als 30 Tage gelöscht, siehe "Speicherplatz und Laufzeit".
 - Ein **Backup** von Home Assistant vor der Installation.
 
 ## Installation
@@ -56,6 +56,19 @@ cp apps/power_flow_logger/power_flow_logger.py /app_configs/<id>/apps/power_flow
 ```
 oder den `curl`-Befehl aus b) erneut ausführen. Neue Konfigurationsoptionen stehen in `apps.yaml.example`. `/tmp` wird beim Neustart geleert, dann den Clone neu anlegen.
 
+### Speicherplatz und Laufzeit
+Damit der Log nicht unbemerkt den Speicher füllt, gibt es drei Einstellungen (alle optional):
+
+```yaml
+  compress: true         # abgeschlossene Tage als .csv.gz packen (Standard)
+  retention_days: 30     # Dateien älter als 30 Tage löschen (Standard, 0 = nie)
+  duration_days: 14      # nach 14 Tagen selbst stoppen (Standard: unbegrenzt)
+```
+
+- **Packen:** Jede Nacht um 00:05 Uhr und beim Start werden alle Tagesdateien **vor heute** gepackt (`lastlog_JJJJ-MM-TT.csv` wird zu `lastlog_JJJJ-MM-TT.csv.gz`). Die Datei von heute bleibt unverändert. Text wie diese CSV schrumpft beim Packen stark, der genaue Faktor hängt von den Daten ab. Prüfe ihn nach dem ersten Tag. Auswerten geht auch mit den `.gz`-Dateien (`zcat`, Python `gzip`, Excel nach dem Entpacken).
+- **Aufbewahrung:** Dateien mit dem Muster `lastlog_JJJJ-MM-TT.csv[.gz]`, die älter als `retention_days` sind, werden gelöscht. Andere Dateien im `log_dir` bleiben unberührt. Jede Pflege-Aktion steht im AppDaemon-Protokoll. **Standard ist 30 Tage.** Wer länger aufbewahren will, setzt einen höheren Wert, `0` schaltet das Löschen ab.
+- **Aufzeichnungsdauer:** Mit `duration_days` stoppt die App nach dieser Zeit selbst und schreibt eine Warnung ins Protokoll. Der Startzeitpunkt steht in der Datei `.lastlog_start` im `log_dir`, ein Neustart von AppDaemon setzt die Frist also nicht zurück. Zum Neustart der Aufzeichnung die Datei löschen oder den Wert erhöhen. Das ist nützlich, wenn man das Logging nur für eine Messkampagne braucht und es nicht vergessen will.
+
 ### Hinweise zur Konfiguration
 - Wechselrichter fallen nachts oder bei Funkproblemen aus (Sensor `unavailable`). Mit `optional: true` zählt ein fehlender Wert dann als 0 W, sonst bleibt `verbrauch_w` leer.
 - Die Altersspalte (`*_age_s`) beruht auf `last_updated`. Bei konstanten Werten (z. B. 0 W) steigt sie weiter an, weil HA den Zeitstempel dann nicht ändert. Sie taugt daher vor allem für sich ändernde Messwerte.
@@ -88,6 +101,9 @@ Die Vorlage ist `apps/power_flow_logger/apps.yaml.example`. Der Block gehört in
 |---|---|
 | `interval` | Sekunden zwischen den Zeilen (Standard 1). |
 | `log_dir` | Zielordner der CSV-Dateien (Standard `/config/lastlog`), eine Datei pro Tag. |
+| `compress` | `true` (Standard): abgeschlossene Tage werden als `.csv.gz` gepackt. |
+| `retention_days` | Standard `30`: Tagesdateien älter als N Tage werden gelöscht. `0` = nie löschen. |
+| `duration_days` | Optional: nach N Tagen Aufzeichnung stoppt die App selbst. Leer = unbegrenzt. |
 | `grids` | Netzquellen, beliebig viele. Je Quelle **entweder** `entity` (ein vorzeichenbehafteter Sensor, optional `invert: true`) **oder** `in` und `out` (zwei vorzeichenlose Sensoren, je ≥ 0). |
 | `primary_grid` | Netzquelle, aus der der Hausverbrauch berechnet wird (Standard: erste). |
 | `inverters` | Erzeuger (AC-Leistung in W, Abgabe positiv). Zählen in den Hausverbrauch. |
