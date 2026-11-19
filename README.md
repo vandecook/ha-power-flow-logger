@@ -17,7 +17,7 @@ Fragen, die der Log beantworten soll:
 | Schlüssel | Bedeutung |
 |---|---|
 | `interval` | Sekunden zwischen den Zeilen (Standard 1). |
-| `log_dir` | Zielordner der CSV-Dateien (Standard `/config/appdaemon/lastlog`), eine Datei pro Tag. |
+| `log_dir` | Zielordner der CSV-Dateien (Standard `/config/lastlog`), eine Datei pro Tag. |
 | `grids` | Netzquellen, beliebig viele. Je Quelle **entweder** `entity` (ein vorzeichenbehafteter Sensor, optional `invert: true`) **oder** `in` und `out` (zwei vorzeichenlose Sensoren, je ≥ 0). |
 | `primary_grid` | Netzquelle, aus der der Hausverbrauch berechnet wird (Standard: erste). |
 | `inverters` | Erzeuger (AC-Leistung in W, Abgabe positiv). Zählen in den Hausverbrauch. |
@@ -49,19 +49,36 @@ Eine Datei pro Tag: `lastlog_JJJJ-MM-TT.csv`. Spalten:
 
 Leere Zelle = Wert nicht verfügbar.
 
+## Voraussetzungen
+- **Home Assistant** mit installierter AppDaemon-App ("AppDaemon" der Home Assistant Community Apps, früher Add-on; getestet mit AppDaemon 0.19.3 / 4.5, Home Assistant 2026.11). Unter Home Assistant OS oder Supervised: Einstellungen, Apps, Store, "AppDaemon", Installieren, Start beim Booten aktivieren und starten. Bei anderen Installationsarten (Docker, venv) AppDaemon 4.x mit HASS-Plugin und Long-Lived Token einrichten.
+- **Sensoren in Home Assistant**, die Leistung in **W** liefern (nicht kW):
+  - mindestens eine Netzquelle: entweder ein vorzeichenbehafteter Sensor (z. B. Shelly 3EM total power) oder zwei vorzeichenlose Sensoren für Bezug und Einspeisung (z. B. AMIS-Leser). Mehrere Netzquellen sind möglich und werden verglichen.
+  - optional die AC-Leistung der Wechselrichter (z. B. OpenDTU-Sensoren) und weitere Werte wie Wärmepumpe oder SOC.
+- **Schreibrecht** im Log-Ordner. In der AppDaemon-App ist `/config` der Konfigurationsordner der App (im SSH-Terminal `/addon_configs/<id>_appdaemon/`, ab 2026.11 auch `/app_configs/<id>_appdaemon/`). `log_dir: /config/lastlog` landet dort.
+- **Speicherplatz:** eine Zeile pro Sekunde ergibt je nach Sensorzahl grob 10 bis 20 MB pro Tag. Bei Dauerbetrieb `interval` erhöhen oder alte Dateien regelmäßig löschen.
+- Ein **Backup** von Home Assistant vor der Installation.
+
 ## Installation
+Der Marketplace von Home Assistant (ab 2026.11) und HACS installieren **keine AppDaemon-Apps**. Die Installation erfolgt deshalb von Hand.
 
-### Über HACS (empfohlen)
-1. In HACS die Erkennung von AppDaemon-Apps aktivieren (Einstellungen, experimentelle Funktionen).
-2. HACS, drei Punkte oben rechts, "Benutzerdefinierte Repositories": URL `https://github.com/vandecook/ha-power-flow-logger` eintragen, Kategorie **AppDaemon**.
-3. "HA Power Flow Logger" herunterladen. HACS legt die App unter `appdaemon/apps/power_flow_logger/` ab.
-4. Den Inhalt von `apps.yaml.example` in die eigene `apps.yaml` von AppDaemon kopieren und die Entitäten anpassen. HACS verändert deine Konfiguration nie.
-5. Im AppDaemon-Log prüfen, dass die App startet und die erste CSV entsteht.
+1. **AppDaemon starten** (siehe Voraussetzungen). Im Protokoll muss `Connected to Home Assistant` und `Using /config/apps as app_dir` stehen.
+2. **App-Ordner anlegen:** im Konfigurationsordner der AppDaemon-App (SSH, Datei-Editor oder Samba) den Ordner `apps/power_flow_logger/` anlegen.
+3. **Code kopieren:** `apps/power_flow_logger/power_flow_logger.py` aus diesem Repo dorthin legen. Per SSH mit Git:
+   ```
+   cd /tmp && git clone https://github.com/vandecook/ha-power-flow-logger
+   cp ha-power-flow-logger/apps/power_flow_logger/power_flow_logger.py \
+      /app_configs/<id>_appdaemon/apps/power_flow_logger/
+   ```
+   (Bei älteren Installationen `/addon_configs/…` statt `/app_configs/…`.) Alternativ die Datei herunterladen und mit dem Datei-Editor einfügen.
+4. **Konfiguration eintragen:** den Block aus `apps.yaml.example` ans Ende von `apps/apps.yaml` (im AppDaemon-Konfigurationsordner) hängen und alle Entitäten anpassen. Bestehende Apps bleiben unberührt.
+5. **Vorzeichen prüfen:** bei einem vorzeichenbehafteten Netzsensor muss Bezug positiv sein, sonst `invert: true` setzen. Test: nachts ohne PV einen Verbraucher einschalten, `netz_<name>_w` muss steigen.
+6. **Log prüfen:** AppDaemon lädt die `apps.yaml` selbst neu. Im Protokoll erscheint `Belastungslog gestartet (…)`, danach liegt die erste CSV in `log_dir`. Fehler (Tippfehler bei Modul, Klasse oder Entität) stehen ebenfalls dort.
 
-Voraussetzungen: AppDaemon-Add-on mit Zugriff auf HA und Schreibrecht auf `log_dir`. Vorher ein Backup machen. HACS kann nur öffentliche Repos installieren.
+**Updates:** Datei `power_flow_logger.py` ersetzen. AppDaemon lädt sie automatisch neu. Neue Konfigurationsoptionen stehen in `apps.yaml.example`.
 
-### Manuell
-`apps/power_flow_logger/` in das `apps`-Verzeichnis von AppDaemon kopieren, `apps.yaml.example` als Vorlage für die `apps.yaml` verwenden.
+### Hinweise zur Konfiguration
+- Wechselrichter fallen nachts oder bei Funkproblemen aus (Sensor `unavailable`). Mit `optional: true` zählt ein fehlender Wert dann als 0 W, sonst bleibt `verbrauch_w` leer.
+- Die Altersspalte (`*_age_s`) beruht auf `last_updated`. Bei konstanten Werten (z. B. 0 W) steigt sie weiter an, weil HA den Zeitstempel dann nicht ändert. Sie taugt daher vor allem für sich ändernde Messwerte.
 
 ## Geplante Erweiterungen
 - Viertelstunden-Mittel des Bezugs (an der Uhr ausgerichtet) und laufendes Monatsmaximum.

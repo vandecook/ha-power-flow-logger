@@ -2,7 +2,7 @@ power_flow_logger:
   module: power_flow_logger
   class: PowerFlowLogger
   interval: 1
-  log_dir: /config/appdaemon/lastlog
+  log_dir: /config/lastlog            # im AppDaemon-Container; wird bei Bedarf angelegt
 
   # Netzquellen (Bezug +, Einspeisung -). Je Quelle EINE der beiden Varianten:
   #   entity: ein vorzeichenbehafteter Sensor (optional invert: true)
@@ -18,8 +18,12 @@ power_flow_logger:
 
   # Erzeuger (AC-Leistung in W, Abgabe positiv). Zaehlen in den Hausverbrauch.
   inverters:
-    inverter_1: sensor.my_inverter_1_power
-    inverter_2: sensor.my_inverter_2_power
+    inverter_1:
+      entity: sensor.my_inverter_1_power
+      optional: true                  # nachts/offline: fehlender Wert zaehlt als 0 W
+    inverter_2:
+      entity: sensor.my_inverter_2_power
+      optional: true
     # Optionaler weiterer Erzeuger, abschaltbar. Zum Aktivieren einkommentieren und Entitaeten eintragen:
     # inverter_3:
     #   entity: sensor.TODO_INVERTER_3_POWER
