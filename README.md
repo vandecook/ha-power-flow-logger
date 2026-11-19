@@ -51,8 +51,6 @@ Der Marketplace von Home Assistant (ab 2026.11) und HACS installieren **keine Ap
 5. **Vorzeichen prüfen:** bei einem vorzeichenbehafteten Netzsensor muss Bezug positiv sein, sonst `invert: true` setzen. Test: nachts ohne PV einen Verbraucher einschalten, `netz_<name>_w` muss steigen.
 6. **Log prüfen:** AppDaemon lädt die `apps.yaml` selbst neu. Im Protokoll erscheint `Belastungslog gestartet (…)`, danach liegt die erste CSV in `log_dir`. Fehler (Tippfehler bei Modul, Klasse oder Entität) stehen ebenfalls dort.
 
-**Updates:** Die Datei `power_flow_logger.py` ersetzen, AppDaemon lädt sie automatisch neu. Am einfachsten den Befehl aus a) oder b) erneut ausführen, beide funktionieren mehrfach hintereinander. Neue Konfigurationsoptionen stehen in `apps.yaml.example`.
-
 ### Speicherplatz und Laufzeit
 Damit der Log nicht unbemerkt den Speicher füllt, gibt es drei Einstellungen (alle optional):
 
@@ -69,6 +67,31 @@ Damit der Log nicht unbemerkt den Speicher füllt, gibt es drei Einstellungen (a
 ### Hinweise zur Konfiguration
 - Wechselrichter fallen nachts oder bei Funkproblemen aus (Sensor `unavailable`). Mit `optional: true` zählt ein fehlender Wert dann als 0 W, sonst bleibt `verbrauch_w` leer.
 - Die Altersspalte (`*_age_s`) beruht auf `last_updated`. Bei konstanten Werten (z. B. 0 W) steigt sie weiter an, weil HA den Zeitstempel dann nicht ändert. Sie taugt daher vor allem für sich ändernde Messwerte.
+
+## Update
+Die App aktualisiert sich nicht selbst. Ein Update ersetzt nur die Datei `power_flow_logger.py`, deine `apps.yaml` und die bereits geloggten Daten bleiben unberührt. `<id>` ist der Ordner der AppDaemon-App, z. B. `a0d7b954_appdaemon`.
+
+1. **Änderungen ansehen:** Auf GitHub unter "Releases" bzw. in der Commit-Liste nachlesen, was sich geändert hat. Neue oder geänderte Einstellungen stehen in `apps/power_flow_logger/apps.yaml.example`.
+2. **Datei ersetzen** (SSH-Terminal), eine der beiden Möglichkeiten, beliebig oft wiederholbar:
+
+   Mit curl (einfachster Weg, kein Git nötig):
+   ```
+   curl -fL -o /app_configs/<id>/apps/power_flow_logger/power_flow_logger.py \
+     https://raw.githubusercontent.com/vandecook/ha-power-flow-logger/main/apps/power_flow_logger/power_flow_logger.py
+   ```
+   Mit Git (legt den Clone an oder aktualisiert ihn):
+   ```
+   [ -d /tmp/ha-power-flow-logger ] && git -C /tmp/ha-power-flow-logger pull \
+     || git clone --depth 1 https://github.com/vandecook/ha-power-flow-logger /tmp/ha-power-flow-logger
+   cp /tmp/ha-power-flow-logger/apps/power_flow_logger/power_flow_logger.py /app_configs/<id>/apps/power_flow_logger/
+   ```
+3. **Neu laden:** AppDaemon erkennt die geänderte Datei und startet die App selbst neu. Im Protokoll erscheint wieder `Belastungslog gestartet (…)`. Dauert es länger, die AppDaemon-App unter Einstellungen, Apps neu starten.
+4. **Konfiguration ergänzen:** Falls `apps.yaml.example` neue Einstellungen enthält, in die eigene `apps.yaml` übernehmen. Ältere Konfigurationen laufen weiter, neue Einstellungen haben Standardwerte.
+5. **Prüfen:** Im Protokoll auf Fehlermeldungen achten und kontrollieren, dass die CSV weiter geschrieben wird (neue Zeilen, Datum von heute).
+
+**Vorherige Version einspielen (Rollback):** Dieselbe Raw-URL mit einem Tag statt `main`, z. B. `…/v0.1/apps/power_flow_logger/power_flow_logger.py`. Mit Git: `git -C /tmp/ha-power-flow-logger checkout v0.1`, dann kopieren, und zurück mit `git checkout main`. Das geht nur für Stände, für die ein Tag bzw. Release existiert.
+
+**Hinweis:** Beim Neustart der App geht die laufende Sekunde verloren, sonst nichts. Die Tagesdatei wird angehängt, nicht überschrieben. Ändert ein Update die Spalten (z. B. weitere Quellen), gibt es in der Tagesdatei ab diesem Zeitpunkt abweichende Spalten. Die Datei dann von heute löschen oder getrennt auswerten.
 
 ## Konfiguration anpassen (`apps.yaml`)
 Die Vorlage ist `apps/power_flow_logger/apps.yaml.example`. Der Block gehört in die `apps.yaml` im `apps`-Ordner der AppDaemon-App (nicht in den Unterordner `power_flow_logger/`). Das ist dieselbe Datei, in der schon andere Apps stehen können, z. B. `hello_world`.
