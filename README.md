@@ -63,18 +63,35 @@ Der Marketplace von Home Assistant (ab 2026.11) und HACS installieren **keine Ap
 
 1. **AppDaemon starten** (siehe Voraussetzungen). Im Protokoll muss `Connected to Home Assistant` und `Using /config/apps as app_dir` stehen.
 2. **App-Ordner anlegen:** im Konfigurationsordner der AppDaemon-App (SSH, Datei-Editor oder Samba) den Ordner `apps/power_flow_logger/` anlegen.
-3. **Code kopieren:** `apps/power_flow_logger/power_flow_logger.py` aus diesem Repo dorthin legen. Per SSH mit Git:
+3. **Code herunterladen und kopieren.** `<id>` ist der Ordner der AppDaemon-App, z. B. `a0d7b954_appdaemon`. Bei älteren Installationen heißt der Oberordner `/addon_configs/` statt `/app_configs/`. Eine der drei Möglichkeiten:
+
+   **a) Mit Git (SSH-Terminal):**
    ```
-   cd /tmp && git clone https://github.com/vandecook/ha-power-flow-logger
-   cp ha-power-flow-logger/apps/power_flow_logger/power_flow_logger.py \
-      /app_configs/<id>_appdaemon/apps/power_flow_logger/
+   mkdir -p /app_configs/<id>/apps/power_flow_logger
+   git clone https://github.com/vandecook/ha-power-flow-logger /tmp/ha-power-flow-logger
+   cp /tmp/ha-power-flow-logger/apps/power_flow_logger/power_flow_logger.py /app_configs/<id>/apps/power_flow_logger/
    ```
-   (Bei älteren Installationen `/addon_configs/…` statt `/app_configs/…`.) Alternativ die Datei herunterladen und mit dem Datei-Editor einfügen.
+
+   **b) Nur die eine Datei per curl oder wget (kein Git nötig):**
+   ```
+   mkdir -p /app_configs/<id>/apps/power_flow_logger
+   curl -fL -o /app_configs/<id>/apps/power_flow_logger/power_flow_logger.py \
+     https://raw.githubusercontent.com/vandecook/ha-power-flow-logger/main/apps/power_flow_logger/power_flow_logger.py
+   ```
+   (oder `wget -O <Zieldatei> <URL>`). Für einen festen Stand `main` in der URL durch einen Tag wie `v0.1` ersetzen.
+
+   **c) Von Hand:** Datei im Browser öffnen, "Raw" wählen, den Inhalt kopieren und im Datei-Editor von Home Assistant in `apps/power_flow_logger/power_flow_logger.py` einfügen.
+
 4. **Konfiguration eintragen:** den Block aus `apps.yaml.example` ans Ende von `apps/apps.yaml` (im AppDaemon-Konfigurationsordner) hängen und alle Entitäten anpassen. Bestehende Apps bleiben unberührt.
 5. **Vorzeichen prüfen:** bei einem vorzeichenbehafteten Netzsensor muss Bezug positiv sein, sonst `invert: true` setzen. Test: nachts ohne PV einen Verbraucher einschalten, `netz_<name>_w` muss steigen.
 6. **Log prüfen:** AppDaemon lädt die `apps.yaml` selbst neu. Im Protokoll erscheint `Belastungslog gestartet (…)`, danach liegt die erste CSV in `log_dir`. Fehler (Tippfehler bei Modul, Klasse oder Entität) stehen ebenfalls dort.
 
-**Updates:** Datei `power_flow_logger.py` ersetzen. AppDaemon lädt sie automatisch neu. Neue Konfigurationsoptionen stehen in `apps.yaml.example`.
+**Updates:** Die Datei `power_flow_logger.py` ersetzen, AppDaemon lädt sie automatisch neu. Mit einem vorhandenen Clone:
+```
+cd /tmp/ha-power-flow-logger && git pull
+cp apps/power_flow_logger/power_flow_logger.py /app_configs/<id>/apps/power_flow_logger/
+```
+oder den `curl`-Befehl aus b) erneut ausführen. Neue Konfigurationsoptionen stehen in `apps.yaml.example`. `/tmp` wird beim Neustart geleert, dann den Clone neu anlegen.
 
 ### Hinweise zur Konfiguration
 - Wechselrichter fallen nachts oder bei Funkproblemen aus (Sensor `unavailable`). Mit `optional: true` zählt ein fehlender Wert dann als 0 W, sonst bleibt `verbrauch_w` leer.
